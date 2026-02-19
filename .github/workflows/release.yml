@@ -45,7 +45,8 @@ jobs:
             echo "Jar not found: $JAR" >&2
             exit 1
           fi
-          ASSET=tools-java-${VERSION}.jar
+          RELEASE_VERSION="${VERSION%-SNAPSHOT}"
+          ASSET=tools-java-${RELEASE_VERSION}.jar
           cp "$JAR" "$ASSET"
           echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
       - name: Upload release asset
