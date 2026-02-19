@@ -29,6 +29,11 @@ jobs:
           path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
+      - name: Set version from tag
+        run: |
+          RAW_TAG="${{ inputs.tag_name }}"
+          VERSION="${RAW_TAG#v}"
+          mvn --batch-mode versions:set -DnewVersion="${VERSION}" -DgenerateBackupPoms=false
       - name: Build jar
         run: mvn --batch-mode -DskipTests package
       - name: Prepare release asset
