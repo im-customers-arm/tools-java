@@ -20,6 +20,9 @@ package org.spdx.tools.compare;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.stream.IntStream;
 
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -53,6 +56,7 @@ public abstract class AbstractFileCompareSheet extends AbstractSheet {
 	private static final int MAX_VALUE_LENGTH = 32000;
 
 	private NormalizedFileNameComparator normalizedFileNameComparator = new NormalizedFileNameComparator();
+	private ConcurrentMap<String, Boolean> comparisonCache = new ConcurrentHashMap<>();
 
 	/**
 	 * @param workbook

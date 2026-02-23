@@ -27,6 +27,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
+import java.util.Arrays;
 
 import org.spdx.core.InvalidSPDXAnalysisException;
 import org.spdx.library.model.v2.Annotation;
@@ -46,6 +50,9 @@ import org.spdx.library.referencetype.ListedReferenceTypes;
 public class CompareHelper {
 
 	static final int MAX_CHARACTERS_PER_CELL = 32000;
+	private static final ConcurrentMap<Checksum, String> checksumCache = new ConcurrentHashMap<>();
+	private static final ConcurrentMap<Annotation, String> annotationCache = new ConcurrentHashMap<>();
+	private static final ConcurrentMap<Relationship, String> relationshipCache = new ConcurrentHashMap<>();
 
 	/**
 	 *
@@ -60,18 +67,24 @@ public class CompareHelper {
 	 * @throws InvalidSPDXAnalysisException 
 	 */
 	public static String annotationToString(Annotation annotation) throws InvalidSPDXAnalysisException {
-		if (annotation == null) {
-			return "";
-		}
-		StringBuilder sb = new StringBuilder(annotation.getAnnotationDate());
-		sb.append(" ");
-		sb.append(annotation.getAnnotator());
-		sb.append(": ");
-		sb.append(annotation.getComment());
-		sb.append("[");
-		sb.append(annotation.getAnnotationType().toString());
-		sb.append("]");
-		return sb.toString();
+		return annotationCache.computeIfAbsent(annotation, ann -> {
+			try {
+				if (annotation == null) {
+					return "";
+				}
+				StringBuilder sb = new StringBuilder(annotation.getAnnotationDate());
+				sb.append(" ");
+				sb.append(annotation.getAnnotator());
+				sb.append(": ");
+				sb.append(annotation.getComment());
+				sb.append("[");
+				sb.append(annotation.getAnnotationType().toString());
+				sb.append("]");
+				return sb.toString();
+			} catch (InvalidSPDXAnalysisException e) {
+				throw new RuntimeException(e);
+			}
+		});
 	}
 
 	/**
@@ -84,11 +97,16 @@ public class CompareHelper {
 		if (checksums == null || checksums.size() == 0) {
 			return "";
 		}
-		List<String> cksumString = new ArrayList<>();
-		for (Checksum checksum:checksums) {
-			cksumString.add(checksumToString(checksum));
-		}
-		Collections.sort(cksumString);
+		List<String> cksumString = checksums.parallelStream()
+				.map(cksum -> {
+					try {
+						return CompareHelper.checksumToString(cksum);
+					} catch (InvalidSPDXAnalysisException e) {
+						throw new RuntimeException(e);
+					}
+				})
+				.sorted()
+				.collect(Collectors.toList());
 		StringBuilder sb = new StringBuilder(cksumString.get(0));
 		for (int i = 1; i < cksumString.size(); i++) {
 			sb.append("\n");
@@ -110,13 +128,19 @@ public class CompareHelper {
 	 * @throws InvalidSPDXAnalysisException 
 	 */
 	public static String checksumToString(Checksum checksum) throws InvalidSPDXAnalysisException {
-		if (checksum == null) {
-			return "";
-		}
-		StringBuilder sb = new StringBuilder(checksum.getAlgorithm().toString());
-		sb.append(' ');
-		sb.append(checksum.getValue());
-		return sb.toString();
+		return checksumCache.computeIfAbsent(checksum, cksum -> {
+			try {
+				if (checksum == null) {
+					return "";
+				}
+				StringBuilder sb = new StringBuilder(checksum.getAlgorithm().toString());
+				sb.append(' ');
+				sb.append(checksum.getValue());
+				return sb.toString();
+			} catch (InvalidSPDXAnalysisException e) {
+				throw new RuntimeException(e);
+			}
+		});
 	}
 
 	/**
@@ -127,14 +151,11 @@ public class CompareHelper {
 		if (licenseInfos == null || licenseInfos.size() == 0) {
 			return "";
 		}
-		StringBuilder sb = new StringBuilder();
-		Iterator<AnyLicenseInfo> iter = licenseInfos.iterator();
-		sb.append(iter.next().toString());
-		while (iter.hasNext()) {
-			sb.append(", ");
-			sb.append(iter.next().toString());
-		}
-		return sb.toString();
+		return licenseInfos.parallelStream()
+				.map(licenseInfo -> {
+						return licenseInfo.toString();
+				})
+				.collect(Collectors.joining(", "));
 	}
 
 	/**
@@ -143,69 +164,62 @@ public class CompareHelper {
 	 * @throws InvalidSPDXAnalysisException 
 	 */
 	public static String annotationsToString(Collection<Annotation> annotations) throws InvalidSPDXAnalysisException {
-		
 		if (annotations == null || annotations.size() == 0) {
 			return "";
 		}
-		Iterator<Annotation> iter = annotations.iterator();
-		StringBuilder sb = new StringBuilder(annotationToString(iter.next()));
-		int numRemaining = annotations.size() - 1;
-		while (iter.hasNext()) {
-			sb.append("\n");
-			String annotation = annotationToString(iter.next());
-			numRemaining--;
-			if (sb.length() + annotation.length() > MAX_CHARACTERS_PER_CELL) {
-				sb.append('[');
-				sb.append(numRemaining);
-				sb.append(" more...]");
-				break;
-			}
-			sb.append(annotation);
-		}
-		return sb.toString();
+		return annotations.parallelStream()
+				.map(ann -> {
+					try {
+						return CompareHelper.annotationToString(ann);
+					} catch (InvalidSPDXAnalysisException e) {
+						throw new RuntimeException(e);
+					}
+				})
+				.collect(Collectors.joining("\n"));
 	}
 
 	public static String attributionsToString(Collection<String> attributions) {
 		if (attributions == null || attributions.size() == 0) {
 			return "";
 		}
-		Iterator<String> iter = attributions.iterator();
-		StringBuilder sb = new StringBuilder(iter.next());
-		while (iter.hasNext()) {
-			sb.append("\n");
-			sb.append(iter.next());
-		}
-		return sb.toString();
+		return attributions.parallelStream()
+				.collect(Collectors.joining("\n"));
 	}
 
 	public static String relationshipToString(Relationship relationship) throws InvalidSPDXAnalysisException {
-		if (relationship == null) {
-			return "";
-		}
-		if (relationship.getRelationshipType() == null) {
-			return "Unknown relationship type";
-		}
-		StringBuilder sb = new StringBuilder(relationship.getRelationshipType().toString());
-		sb.append(":");
-		Optional<SpdxElement> relatedElement = relationship.getRelatedSpdxElement();
-		if (!relatedElement.isPresent()) {
-			sb.append("?NULL");
-		} else {
-		    Optional<String> relatedElementName = relatedElement.get().getName();
-			if (relatedElementName.isPresent()) {
-				sb.append('[');
-				sb.append(relatedElementName.get());
-				sb.append(']');
+		return relationshipCache.computeIfAbsent(relationship, rel -> {
+			try {
+				if (relationship == null) {
+					return "";
+				}
+				if (relationship.getRelationshipType() == null) {
+					return "Unknown relationship type";
+				}
+				StringBuilder sb = new StringBuilder(relationship.getRelationshipType().toString());
+				sb.append(":");
+				Optional<SpdxElement> relatedElement = relationship.getRelatedSpdxElement();
+				if (!relatedElement.isPresent()) {
+					sb.append("?NULL");
+				} else {
+					Optional<String> relatedElementName = relatedElement.get().getName();
+					if (relatedElementName.isPresent()) {
+						sb.append('[');
+						sb.append(relatedElementName.get());
+						sb.append(']');
+					}
+					sb.append(relatedElement.get().getId());
+				}
+				Optional<String> comment = relationship.getComment();
+				if (comment.isPresent() && !comment.get().isEmpty()) {
+					sb.append('(');
+					sb.append(comment.get());
+					sb.append(')');
+				}
+				return sb.toString();
+			} catch (InvalidSPDXAnalysisException e) {
+				throw new RuntimeException(e);
 			}
-			sb.append(relatedElement.get().getId());
-		}
-		Optional<String> comment = relationship.getComment();
-		if (comment.isPresent() && !comment.get().isEmpty()) {
-			sb.append('(');
-			sb.append(comment.get());
-			sb.append(')');
-		}
-		return sb.toString();
+		});
 	}
 
 	/**
@@ -217,45 +231,30 @@ public class CompareHelper {
 		if (relationships == null || relationships.size() == 0) {
 			return "";
 		}
-		Iterator<Relationship> iter = relationships.iterator();
-		StringBuilder sb = new StringBuilder(relationshipToString(iter.next()));
-		int numRemaining = relationships.size() - 1;
-		while (iter.hasNext()) {
-			sb.append("\n");
-			String nextRelationship = relationshipToString(iter.next());
-			numRemaining--;
-			if (sb.length() + nextRelationship.length() > MAX_CHARACTERS_PER_CELL) {
-				sb.append('[');
-				sb.append(numRemaining);
-				sb.append(" more...]");
-				break;
-			}
-			sb.append(nextRelationship);
-		}
-		return sb.toString();
+		return relationships.parallelStream()
+				.map(rel -> {
+					try {
+						return CompareHelper.relationshipToString(rel);
+					} catch (InvalidSPDXAnalysisException e) {
+						throw new RuntimeException(e);
+					}
+				})
+				.collect(Collectors.joining("\n"));
 	}
 
 	public static String formatSpdxElementList(Collection<SpdxElement> elements) throws InvalidSPDXAnalysisException {
 		if (elements == null || elements.size() == 0) {
 			return "";
 		}
-		
-		Iterator<SpdxElement> iter = elements.iterator();
-		StringBuilder sb = new StringBuilder(formatElement(iter.next()));
-		int numRemaining = elements.size() - 1;
-		while (iter.hasNext()) {
-			sb.append(", ");
-			String nextElement = formatElement(iter.next());
-			numRemaining--;
-			if (sb.length() + nextElement.length() > MAX_CHARACTERS_PER_CELL) {
-				sb.append('[');
-				sb.append(numRemaining);
-				sb.append(" more...]");
-				break;
-			}
-			sb.append(nextElement);
-		}
-		return sb.toString();
+		return elements.parallelStream()
+				.map(element -> {
+					try {
+						return CompareHelper.formatElement(element);
+					} catch (InvalidSPDXAnalysisException e) {
+						throw new RuntimeException(e);
+					}
+				})
+				.collect(Collectors.joining(", "));
 	}
 
 	private static String formatElement(SpdxElement element) throws InvalidSPDXAnalysisException {
@@ -281,20 +280,9 @@ public class CompareHelper {
 		if (fileTypes == null || fileTypes.length == 0) {
 			return "";
 		}
-		StringBuilder sb = new StringBuilder(fileTypes[0].toString());
-		for (int i = 1;i < fileTypes.length; i++) {
-			sb.append(", ");
-			String fileType = fileTypes[i].toString();
-			if (sb.length() + fileType.length() > MAX_CHARACTERS_PER_CELL) {
-				int numRemaing = fileTypes.length - i;
-				sb.append('[');
-				sb.append(numRemaing);
-				sb.append(" more...]");
-				break;
-			}
-			sb.append(fileType);
-		}
-		return sb.toString();
+		return Arrays.stream(fileTypes)
+				.map(FileType::toString)
+				.collect(Collectors.joining(", "));
 	}
 
 	/**
@@ -307,13 +295,15 @@ public class CompareHelper {
 		if (externalRefs == null || externalRefs.size() == 0) {
 			return "";
 		}
-		Iterator<ExternalRef> iter = externalRefs.iterator();
-		StringBuilder sb = new StringBuilder(externalRefToString(iter.next(), docNamespace));
-		while (iter.hasNext()) {
-			sb.append("; ");
-			sb.append(externalRefToString(iter.next(), docNamespace));
-		}
-		return sb.toString();
+		return externalRefs.parallelStream()
+				.map(ref -> {
+					try {
+						return CompareHelper.externalRefToString(ref, docNamespace);
+					} catch (InvalidSPDXAnalysisException e) {
+						throw new RuntimeException(e);
+					}
+				})
+				.collect(Collectors.joining("; "));
 	}
 
 	/**

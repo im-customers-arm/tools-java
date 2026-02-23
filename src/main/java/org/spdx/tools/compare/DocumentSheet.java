@@ -21,6 +21,9 @@ package org.spdx.tools.compare;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.stream.IntStream;
 
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -69,6 +72,7 @@ public class DocumentSheet extends AbstractSheet {
 	private static final String DIFFERENT_STRING = "Diff";
 	private static final String EQUAL_STRING = "Equals";
 
+	private ConcurrentMap<String, String> comparisonCache = new ConcurrentHashMap<>();
 
 	/**
 	 * @param workbook
@@ -166,10 +170,21 @@ public class DocumentSheet extends AbstractSheet {
 		} else {
 			setCellDifferentValue(cell);
 		}
-		for (int i = 0; i < comparer.getNumSpdxDocs(); i++) {
-			cell = sheet.getRow(getFirstDataRow()+i+1).createCell(ANNOTATION_COL);
-			cell.setCellValue(CompareHelper.annotationsToString((comparer.getSpdxDoc(i).getAnnotations())));
-		}
+		IntStream.range(0, comparer.getNumSpdxDocs()).parallel().forEach(i -> {
+			try {
+				Cell dataCell = sheet.getRow(getFirstDataRow() + i + 1).createCell(ANNOTATION_COL);
+				String annotations = comparisonCache.computeIfAbsent("annotations_" + i, key -> {
+					try {
+						return CompareHelper.annotationsToString(comparer.getSpdxDoc(i).getAnnotations());
+					} catch (InvalidSPDXAnalysisException e) {
+						throw new RuntimeException(e);
+					}
+				});
+				dataCell.setCellValue(annotations);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
+			}
+		});
 	}
 
 	/**
@@ -184,10 +199,21 @@ public class DocumentSheet extends AbstractSheet {
 		} else {
 			setCellDifferentValue(cell);
 		}
-		for (int i = 0; i < comparer.getNumSpdxDocs(); i++) {
-			cell = sheet.getRow(getFirstDataRow()+i+1).createCell(RELATIONSHIP_COL);
-			cell.setCellValue(CompareHelper.relationshipsToString(comparer.getSpdxDoc(i).getRelationships()));
-		}
+		IntStream.range(0, comparer.getNumSpdxDocs()).parallel().forEach(i -> {
+			try {
+				Cell dataCell = sheet.getRow(getFirstDataRow() + i + 1).createCell(RELATIONSHIP_COL);
+				String relationships = comparisonCache.computeIfAbsent("relationships_" + i, key -> {
+					try {
+						return CompareHelper.relationshipsToString(comparer.getSpdxDoc(i).getRelationships());
+					} catch (InvalidSPDXAnalysisException e) {
+						throw new RuntimeException(e);
+					}
+				});
+				dataCell.setCellValue(relationships);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
+			}
+		});
 	}
 
 	/**
@@ -202,10 +228,21 @@ public class DocumentSheet extends AbstractSheet {
 		} else {
 			setCellDifferentValue(cell);
 		}
-		for (int i = 0; i < comparer.getNumSpdxDocs(); i++) {
-			cell = sheet.getRow(getFirstDataRow()+i+1).createCell(SPDX_DOCUMENT_CONTENT_COL);
-			cell.setCellValue(CompareHelper.formatSpdxElementList(comparer.getSpdxDoc(i).getDocumentDescribes()));
-		}
+		IntStream.range(0, comparer.getNumSpdxDocs()).parallel().forEach(i -> {
+			try {
+				Cell dataCell = sheet.getRow(getFirstDataRow() + i + 1).createCell(SPDX_DOCUMENT_CONTENT_COL);
+				String documentDescribes = comparisonCache.computeIfAbsent("documentDescribes_" + i, key -> {
+					try {
+						return CompareHelper.formatSpdxElementList(comparer.getSpdxDoc(i).getDocumentDescribes());
+					} catch (InvalidSPDXAnalysisException e) {
+						throw new RuntimeException(e);
+					}
+				});
+				dataCell.setCellValue(documentDescribes);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
+			}
+		});
 	}
 
 	/**
@@ -217,12 +254,21 @@ public class DocumentSheet extends AbstractSheet {
 		Cell cell = sheet.getRow(getFirstDataRow()).createCell(DOCUMENT_NAMESPACE_COL);
 		cell.setCellValue("N/A");
 		// data rows
-		for (int i = 0; i < comparer.getNumSpdxDocs(); i++) {
-			cell = sheet.getRow(getFirstDataRow()+i+1).createCell(DOCUMENT_NAMESPACE_COL);
-			if (comparer.getSpdxDoc(i).getDocumentUri() != null) {
-				cell.setCellValue(comparer.getSpdxDoc(i).getDocumentUri());
+		IntStream.range(0, comparer.getNumSpdxDocs()).parallel().forEach(i -> {
+			try {
+				Cell dataCell = sheet.getRow(getFirstDataRow() + i + 1).createCell(DOCUMENT_NAMESPACE_COL);
+				String documentNamespace = comparisonCache.computeIfAbsent("documentNamespace_" + i, key -> {
+					try {
+						return comparer.getSpdxDoc(i).getDocumentUri();
+					} catch (InvalidSPDXAnalysisException e) {
+						throw new RuntimeException(e);
+					}
+				});
+				dataCell.setCellValue(documentNamespace);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
 			}
-		}
+		});
 	}
 
 	/**
@@ -233,12 +279,21 @@ public class DocumentSheet extends AbstractSheet {
 		Cell cell = sheet.getRow(getFirstDataRow()).createCell(SPDX_IDENTIFIER_COL);
 		cell.setCellValue("N/A");
 		// data rows
-		for (int i = 0; i < comparer.getNumSpdxDocs(); i++) {
-			cell = sheet.getRow(getFirstDataRow()+i+1).createCell(SPDX_IDENTIFIER_COL);
-			if (comparer.getSpdxDoc(i).getId() != null) {
-				cell.setCellValue(comparer.getSpdxDoc(i).getId());
+		IntStream.range(0, comparer.getNumSpdxDocs()).parallel().forEach(i -> {
+			try {
+				Cell dataCell = sheet.getRow(getFirstDataRow() + i + 1).createCell(SPDX_IDENTIFIER_COL);
+				String spdxId = comparisonCache.computeIfAbsent("spdxId_" + i, key -> {
+					try {
+						return comparer.getSpdxDoc(i).getId();
+					} catch (InvalidSPDXAnalysisException e) {
+						throw new RuntimeException(e);
+					}
+				});
+				dataCell.setCellValue(spdxId);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
 			}
-		}
+		});
 	}
 
 	/**
@@ -254,16 +309,28 @@ public class DocumentSheet extends AbstractSheet {
 			setCellDifferentValue(cell);
 		}
 		// data rows
-		for (int i = 0; i < comparer.getNumSpdxDocs(); i++) {
-			cell = sheet.getRow(getFirstDataRow()+i+1).createCell(LICENSE_LIST_VERSION_COL);
-			SpdxCreatorInformation creationInfo = comparer.getSpdxDoc(i).getCreationInfo();
-			if (creationInfo != null) {
-				Optional<String> licenseListVersion = creationInfo.getLicenseListVersion();
-				if (licenseListVersion.isPresent()) {
-					cell.setCellValue(licenseListVersion.get());
-				}
+		IntStream.range(0, comparer.getNumSpdxDocs()).parallel().forEach(i -> {
+			try {
+				Cell dataCell = sheet.getRow(getFirstDataRow() + i + 1).createCell(LICENSE_LIST_VERSION_COL);
+				String licenseListVersion = comparisonCache.computeIfAbsent("licenseListVersion_" + i, key -> {
+					try {
+						SpdxCreatorInformation creationInfo = comparer.getSpdxDoc(i).getCreationInfo();
+						if (creationInfo != null) {
+							Optional<String> version = creationInfo.getLicenseListVersion();
+							if (version.isPresent()) {
+								return version.get();
+							}
+						}
+						return "";
+					} catch (InvalidSPDXAnalysisException e) {
+						throw new RuntimeException(e);
+					}
+				});
+				dataCell.setCellValue(licenseListVersion);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
 			}
-		}
+		});
 	}
 
 	/**
@@ -280,12 +347,21 @@ public class DocumentSheet extends AbstractSheet {
 			setCellDifferentValue(cell);
 		}
 		// data rows
-		for (int i = 0; i < comparer.getNumSpdxDocs(); i++) {
-			cell = sheet.getRow(getFirstDataRow()+i+1).createCell(SPDX_VERSION_COL);
-			if (comparer.getSpdxDoc(i).getSpecVersion() != null) {
-				cell.setCellValue(comparer.getSpdxDoc(i).getSpecVersion());
+		IntStream.range(0, comparer.getNumSpdxDocs()).parallel().forEach(i -> {
+			try {
+				Cell dataCell = sheet.getRow(getFirstDataRow() + i + 1).createCell(SPDX_VERSION_COL);
+				String spdxVersion = comparisonCache.computeIfAbsent("spdxVersion_" + i, key -> {
+					try {
+						return comparer.getSpdxDoc(i).getSpecVersion();
+					} catch (InvalidSPDXAnalysisException e) {
+						throw new RuntimeException(e);
+					}
+				});
+				dataCell.setCellValue(spdxVersion);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
 			}
-		}
+		});
 	}
 
 	/**
@@ -300,12 +376,21 @@ public class DocumentSheet extends AbstractSheet {
 			setCellDifferentValue(cell);
 		}
 		// data rows
-		for (int i = 0; i < comparer.getNumSpdxDocs(); i++) {
-			cell = sheet.getRow(getFirstDataRow()+i+1).createCell(DATA_LICENSE_COL);
-			if (comparer.getSpdxDoc(i).getDataLicense() != null) {
-				cell.setCellValue(comparer.getSpdxDoc(i).getDataLicense().toString());
+		IntStream.range(0, comparer.getNumSpdxDocs()).parallel().forEach(i -> {
+			try {
+				Cell dataCell = sheet.getRow(getFirstDataRow() + i + 1).createCell(DATA_LICENSE_COL);
+				String dataLicense = comparisonCache.computeIfAbsent("dataLicense_" + i, key -> {
+					try {
+						return comparer.getSpdxDoc(i).getDataLicense().toString();
+					} catch (InvalidSPDXAnalysisException e) {
+						throw new RuntimeException(e);
+					}
+				});
+				dataCell.setCellValue(dataLicense);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
 			}
-		}
+		});
 	}
 
 	/**
@@ -320,13 +405,22 @@ public class DocumentSheet extends AbstractSheet {
 			setCellDifferentValue(cell);
 		}
 		// data rows
-		for (int i = 0; i < comparer.getNumSpdxDocs(); i++) {
-			cell = sheet.getRow(getFirstDataRow()+i+1).createCell(DOCUMENT_COMMENT_COL);
-			Optional<String> comment = comparer.getSpdxDoc(i).getComment();
-			if (comment.isPresent()) {
-				cell.setCellValue(comment.get());
+		IntStream.range(0, comparer.getNumSpdxDocs()).parallel().forEach(i -> {
+			try {
+				Cell dataCell = sheet.getRow(getFirstDataRow() + i + 1).createCell(DOCUMENT_COMMENT_COL);
+				String documentComment = comparisonCache.computeIfAbsent("documentComment_" + i, key -> {
+					try {
+						Optional<String> comment = comparer.getSpdxDoc(i).getComment();
+						return comment.orElse("");
+					} catch (InvalidSPDXAnalysisException e) {
+						throw new RuntimeException(e);
+					}
+				});
+				dataCell.setCellValue(documentComment);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
 			}
-		}
+		});
 	}
 
 	/**
@@ -343,16 +437,28 @@ public class DocumentSheet extends AbstractSheet {
 			setCellDifferentValue(cell);
 		}
 		// data rows
-		for (int i = 0; i < comparer.getNumSpdxDocs(); i++) {
-			cell = sheet.getRow(getFirstDataRow()+i+1).createCell(CREATOR_COMMENT_COL);
-			SpdxCreatorInformation creationInfo = comparer.getSpdxDoc(i).getCreationInfo();
-			if (creationInfo != null) {
-				Optional<String> creatorComment = creationInfo.getComment();
-				if (creatorComment.isPresent()) {
-					cell.setCellValue(creatorComment.get());
-				}
+		IntStream.range(0, comparer.getNumSpdxDocs()).parallel().forEach(i -> {
+			try {
+				Cell dataCell = sheet.getRow(getFirstDataRow() + i + 1).createCell(CREATOR_COMMENT_COL);
+				String creatorComment = comparisonCache.computeIfAbsent("creatorComment_" + i, key -> {
+					try {
+						SpdxCreatorInformation creationInfo = comparer.getSpdxDoc(i).getCreationInfo();
+						if (creationInfo != null) {
+							Optional<String> comment = creationInfo.getComment();
+							if (comment.isPresent()) {
+								return comment.get();
+							}
+						}
+						return "";
+					} catch (InvalidSPDXAnalysisException e) {
+						throw new RuntimeException(e);
+					}
+				});
+				dataCell.setCellValue(creatorComment);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
 			}
-		}
+		});
 	}
 
 	/**
@@ -369,13 +475,25 @@ public class DocumentSheet extends AbstractSheet {
 			setCellDifferentValue(cell);
 		}
 		// data rows
-		for (int i = 0; i < comparer.getNumSpdxDocs(); i++) {
-			cell = sheet.getRow(getFirstDataRow()+i+1).createCell(CREATION_DATE_COL);
-			SpdxCreatorInformation creationInfo = comparer.getSpdxDoc(i).getCreationInfo();
-			if (creationInfo != null) {
-				cell.setCellValue(creationInfo.getCreated());
+		IntStream.range(0, comparer.getNumSpdxDocs()).parallel().forEach(i -> {
+			try {
+				Cell dataCell = sheet.getRow(getFirstDataRow() + i + 1).createCell(CREATION_DATE_COL);
+				String creationDate = comparisonCache.computeIfAbsent("creationDate_" + i, key -> {
+					try {
+						SpdxCreatorInformation creationInfo = comparer.getSpdxDoc(i).getCreationInfo();
+						if (creationInfo != null) {
+							return creationInfo.getCreated();
+						}
+						return "";
+					} catch (InvalidSPDXAnalysisException e) {
+						throw new RuntimeException(e);
+					}
+				});
+				dataCell.setCellValue(creationDate);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
 			}
-		}
+		});
 	}
 
 	/**
@@ -403,13 +521,22 @@ public class DocumentSheet extends AbstractSheet {
 		Cell cell = sheet.getRow(getFirstDataRow()).createCell(DOCUMENT_NAME_COL);
 		cell.setCellValue("N/A");
 		// data rows
-		for (int i = 0; i < comparer.getNumSpdxDocs(); i++) {
-			cell = sheet.getRow(getFirstDataRow()+i+1).createCell(DOCUMENT_NAME_COL);
-			Optional<String> name = comparer.getSpdxDoc(i).getName();
-			if (name.isPresent()) {
-				cell.setCellValue(name.get());
+		IntStream.range(0, comparer.getNumSpdxDocs()).parallel().forEach(i -> {
+			try {
+				Cell dataCell = sheet.getRow(getFirstDataRow() + i + 1).createCell(DOCUMENT_NAME_COL);
+				String documentName = comparisonCache.computeIfAbsent("documentName_" + i, key -> {
+					try {
+						Optional<String> name = comparer.getSpdxDoc(i).getName();
+						return name.orElse("");
+					} catch (InvalidSPDXAnalysisException e) {
+						throw new RuntimeException(e);
+					}
+				});
+				dataCell.setCellValue(documentName);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
 			}
-		}
+		});
 	}
 
 }

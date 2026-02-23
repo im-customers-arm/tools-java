@@ -16,6 +16,8 @@ on:
       - '**.md'
     tags:
       - 'v*'
+  workflow_dispatch: 
+    
 env:
   REGISTRY: ghcr.io
 

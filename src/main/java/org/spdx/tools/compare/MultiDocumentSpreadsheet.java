@@ -29,6 +29,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
@@ -143,6 +147,8 @@ public class MultiDocumentSpreadsheet {
 	protected FileRelationshipSheet fileRelationshipSheet;
 
 	protected SnippetSheet snippetSheet;
+
+	private ConcurrentMap<String, List<SpdxFile>> fileCache = new ConcurrentHashMap<>();
 
 	/**
 	 * @param spreadsheetFile
@@ -271,12 +277,19 @@ public class MultiDocumentSpreadsheet {
 			throw(new SpdxCompareException("Number of document names does not match the number of documents compared"));
 		}
 
-		List<List<SpdxFile>> files = new ArrayList<>();
-		for (int i = 0; i < comparer.getNumSpdxDocs(); i++) {
-			List<SpdxFile> docFiles = comparer.collectAllFiles(comparer.getSpdxDoc(i));
-			Collections.sort(docFiles, fileComparator);
-			files.add(docFiles);
-		}
+		List<List<SpdxFile>> files = IntStream.range(0, comparer.getNumSpdxDocs())
+				.parallel()
+				.mapToObj(i -> fileCache.computeIfAbsent(comparer.getSpdxDoc(i).getDocumentUri(), key -> {
+					try {
+						List<SpdxFile> docFiles = comparer.collectAllFiles(comparer.getSpdxDoc(i));
+						Collections.sort(docFiles, fileComparator);
+						return docFiles;
+					} catch (InvalidSPDXAnalysisException e) {
+						throw new RuntimeException(e);
+					}
+				}))
+				.collect(Collectors.toList());
+
 		documentSheet.importCompareResults(comparer, docNames);
 		documentSheet.resizeRows();
 		creatorSheet.importCompareResults(comparer, docNames);
